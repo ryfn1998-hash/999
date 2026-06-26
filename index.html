@@ -162,6 +162,13 @@
             box-shadow: 0 0 20px #00f2ff; 
         }
 
+        /* 畫布定位佔位器 */
+        .viewport-placeholder {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
         /* 畫布視窗 */
         .viewport { 
             width: 100%; 
@@ -173,20 +180,20 @@
             cursor: grab; 
             border: 1px solid var(--glass-border); 
             box-shadow: inset 0 4px 20px rgba(0,0,0,0.6);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .viewport:active { cursor: grabbing; }
 
-        /* 全螢幕觸發時的樣式 */
+        /* 強制拔出並完全覆蓋全螢幕的樣式 */
         .viewport.fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 9999;
-            border-radius: 0;
-            background: rgba(5, 5, 8, 0.95);
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 99999 !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            background: #050508 !important;
         }
         
         #ascii-layer { 
@@ -209,7 +216,7 @@
             position: absolute;
             top: 12px;
             right: 12px;
-            z-index: 20;
+            z-index: 100000;
             padding: 8px 14px;
             font-size: 12px;
             font-weight: bold;
@@ -264,16 +271,18 @@
             <button class="btn btn-copy" id="cp">複製轉換後的內容</button>
             <button class="btn" onclick="resetView()" style="flex:0.3">重置視角</button>
         </div>
-        <div class="viewport" id="va">
-            <button class="btn-fs" id="fs-btn" onclick="toggleFullScreen(event)">全螢幕預覽</button>
-            <div class="hint">Ctrl+滾輪 縮放 / 拖拽移動</div>
-            <pre id="ascii-layer">READY...</pre>
+        <div class="viewport-placeholder" id="v-container">
+            <div class="viewport" id="va">
+                <button class="btn-fs" id="fs-btn" onclick="toggleFullScreen(event)">全螢幕預覽</button>
+                <div class="hint">雙指縮放 / 拖拽移動</div>
+                <pre id="ascii-layer">READY...</pre>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    const f=document.getElementById('f'), l=document.getElementById('ascii-layer'), va=document.getElementById('va');
+    const f=document.getElementById('f'), l=document.getElementById('ascii-layer'), va=document.getElementById('va'), vContainer=document.getElementById('v-container');
     const wr=document.getElementById('wr'), wn=document.getElementById('wn'), br=document.getElementById('br'), bn=document.getElementById('bn');
     const cr=document.getElementById('cr'), cn=document.getElementById('cn'), hr=document.getElementById('hr'), hn=document.getElementById('hn'), cp=document.getElementById('cp');
     const fsBtn=document.getElementById('fs-btn');
@@ -283,9 +292,17 @@
     let currentMode = 'char', img = null, sc = 1, px = 50, py = 50, isDragging = false, lx, ly, ld;
 
     function toggleFullScreen(e) {
-        e.stopPropagation(); // 防止觸發畫布點擊
+        e.stopPropagation();
         const isFS = va.classList.toggle('fullscreen');
-        fsBtn.textContent = isFS ? "退出全螢幕" : "全螢幕預覽";
+        if (isFS) {
+            // 移動到 body 最外層，打破所有父級 CSS 限制
+            document.body.appendChild(va);
+            fsBtn.textContent = "退出全螢幕";
+        } else {
+            // 放回原本的盒子裡
+            vContainer.appendChild(va);
+            fsBtn.textContent = "全螢幕預覽";
+        }
     }
 
     function setMode(m) {
@@ -340,7 +357,7 @@
     window.addEventListener('mouseup', () => isDragging = false);
 
     va.ontouchstart = (e) => {
-        if (e.target.classList.contains('btn-fs')) return; // 如果點到全螢幕按鈕，不觸發拖拽
+        if (e.target.classList.contains('btn-fs')) return; 
         if (e.touches.length === 1) { isDragging = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
         else if (e.touches.length === 2) { ld = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }
     };
@@ -357,3 +374,4 @@
 </script>
 </body>
 </html>
+
