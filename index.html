@@ -173,8 +173,21 @@
             cursor: grab; 
             border: 1px solid var(--glass-border); 
             box-shadow: inset 0 4px 20px rgba(0,0,0,0.6);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .viewport:active { cursor: grabbing; }
+
+        /* 全螢幕觸發時的樣式 */
+        .viewport.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            border-radius: 0;
+            background: rgba(5, 5, 8, 0.95);
+        }
         
         #ascii-layer { 
             position: absolute; 
@@ -188,8 +201,32 @@
             text-shadow: 0 0 2px rgba(255,255,255,0.1);
         }
         
-        .hint { position: absolute; bottom: 12px; right: 12px; font-size: 11px; color: #666; pointer-events: none; letter-spacing: 0.5px; }
+        .hint { position: absolute; bottom: 12px; right: 12px; font-size: 11px; color: #666; pointer-events: none; letter-spacing: 0.5px; z-index: 10; }
         input[type="file"] { display: none; }
+
+        /* 全螢幕懸浮按鈕 */
+        .btn-fs {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 20;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .btn-fs:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -228,6 +265,7 @@
             <button class="btn" onclick="resetView()" style="flex:0.3">重置視角</button>
         </div>
         <div class="viewport" id="va">
+            <button class="btn-fs" id="fs-btn" onclick="toggleFullScreen(event)">全螢幕預覽</button>
             <div class="hint">Ctrl+滾輪 縮放 / 拖拽移動</div>
             <pre id="ascii-layer">READY...</pre>
         </div>
@@ -238,10 +276,17 @@
     const f=document.getElementById('f'), l=document.getElementById('ascii-layer'), va=document.getElementById('va');
     const wr=document.getElementById('wr'), wn=document.getElementById('wn'), br=document.getElementById('br'), bn=document.getElementById('bn');
     const cr=document.getElementById('cr'), cn=document.getElementById('cn'), hr=document.getElementById('hr'), hn=document.getElementById('hn'), cp=document.getElementById('cp');
+    const fsBtn=document.getElementById('fs-btn');
     const charList = "$@B%8&WM#*oahkbdpqZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
     const emojiMap = [{e:"⬛",r:0,g:0,b:0},{e:"⬜",r:255,g:255,b:255},{e:"🟥",r:230,g:30,b:30},{e:"🟧",r:255,g:150,b:0},{e:"🟨",r:255,g:215,b:0},{e:"🟩",r:50,g:205,b:50},{e:"🟦",r:30,g:144,b:255},{e:"🟪",r:160,g:32,b:240},{e:"🌚",r:50,g:50,b:50},{e:"🌳",r:34,g:139,b:34}];
     
     let currentMode = 'char', img = null, sc = 1, px = 50, py = 50, isDragging = false, lx, ly, ld;
+
+    function toggleFullScreen(e) {
+        e.stopPropagation(); // 防止觸發畫布點擊
+        const isFS = va.classList.toggle('fullscreen');
+        fsBtn.textContent = isFS ? "退出全螢幕" : "全螢幕預覽";
+    }
 
     function setMode(m) {
         currentMode = m;
@@ -295,10 +340,12 @@
     window.addEventListener('mouseup', () => isDragging = false);
 
     va.ontouchstart = (e) => {
+        if (e.target.classList.contains('btn-fs')) return; // 如果點到全螢幕按鈕，不觸發拖拽
         if (e.touches.length === 1) { isDragging = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
         else if (e.touches.length === 2) { ld = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }
     };
     va.ontouchmove = (e) => {
+        if (e.target.classList.contains('btn-fs')) return;
         if (e.touches.length === 1 && isDragging) { px += e.touches[0].clientX - lx; py += e.touches[0].clientY - ly; lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
         else if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); sc *= d / ld; ld = d; }
         update(); e.preventDefault();
