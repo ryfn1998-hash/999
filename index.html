@@ -162,11 +162,24 @@
             box-shadow: 0 0 20px #00f2ff; 
         }
 
-        /* 畫布定位佔位器 */
-        .viewport-placeholder {
+        /* 預覽區塊外部容器 */
+        .preview-wrapper {
             flex-grow: 1;
+            position: relative;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 整個包覆容器變成全螢幕，這樣按鈕跟畫布才能獨立運作 */
+        .preview-wrapper.fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999999 !important;
+            background: #050508 !important;
         }
 
         /* 畫布視窗 */
@@ -182,23 +195,13 @@
             box-shadow: inset 0 4px 20px rgba(0,0,0,0.6);
         }
         .viewport:active { cursor: grabbing; }
-
-        /* 手機版絕對全螢幕覆蓋強制樣式 */
-        .viewport.fullscreen {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            max-width: 100vw !important;
-            max-height: 100vh !important;
-            z-index: 999999 !important;
-            border-radius: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #050508 !important;
-        }
         
+        /* 當全螢幕時，畫布直接填滿容器且拿掉圓角 */
+        .preview-wrapper.fullscreen .viewport {
+            border-radius: 0 !important;
+            border: none !important;
+        }
+
         #ascii-layer { 
             position: absolute; 
             top: 0; 
@@ -214,28 +217,30 @@
         .hint { position: absolute; bottom: 12px; right: 12px; font-size: 11px; color: #666; pointer-events: none; letter-spacing: 0.5px; z-index: 10; }
         input[type="file"] { display: none; }
 
-        /* 全螢幕懸浮按鈕 */
+        /* 全螢幕懸浮按鈕：完全獨立於畫布之外，避免觸控事件被攔截 */
         .btn-fs {
             position: absolute;
-            top: 16px;
-            right: 16px;
-            z-index: 10000000;
+            top: 12px;
+            right: 12px;
+            z-index: 99999999; /* 確保在最上層 */
             padding: 10px 16px;
             font-size: 12px;
             font-weight: bold;
             color: #fff;
-            background: rgba(188, 19, 254, 0.6);
+            background: rgba(188, 19, 254, 0.7);
             border: 1px solid var(--neon);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border-radius: 8px;
             cursor: pointer;
-            transition: all 0.2s;
             box-shadow: 0 4px 15px rgba(188, 19, 254, 0.4);
+            /* 顯式允許觸控點擊 */
+            pointer-events: auto !important;
+            touch-action: auto !important; 
         }
-        .btn-fs:hover {
+        .btn-fs:active {
             background: var(--neon);
-            box-shadow: 0 0 15px var(--neon);
+            transform: scale(0.95);
         }
     </style>
 </head>
@@ -274,9 +279,11 @@
             <button class="btn btn-copy" id="cp">複製轉換後的內容</button>
             <button class="btn" onclick="resetView()" style="flex:0.3">重置視角</button>
         </div>
-        <div class="viewport-placeholder" id="v-container">
+
+        <div class="preview-wrapper" id="pw">
+            <button class="btn-fs" id="fs-btn">全螢幕預覽</button>
+            
             <div class="viewport" id="va">
-                <button class="btn-fs" id="fs-btn" onclick="toggleFullScreen(event)">全螢幕預覽</button>
                 <div class="hint">雙指縮放 / 拖拽移動</div>
                 <pre id="ascii-layer">READY...</pre>
             </div>
@@ -285,7 +292,7 @@
 </div>
 
 <script>
-    const f=document.getElementById('f'), l=document.getElementById('ascii-layer'), va=document.getElementById('va'), vContainer=document.getElementById('v-container');
+    const f=document.getElementById('f'), l=document.getElementById('ascii-layer'), va=document.getElementById('va'), pw=document.getElementById('pw');
     const wr=document.getElementById('wr'), wn=document.getElementById('wn'), br=document.getElementById('br'), bn=document.getElementById('bn');
     const cr=document.getElementById('cr'), cn=document.getElementById('cn'), hr=document.getElementById('hr'), hn=document.getElementById('hn'), cp=document.getElementById('cp');
     const fsBtn=document.getElementById('fs-btn');
@@ -294,20 +301,21 @@
     
     let currentMode = 'char', img = null, sc = 1, px = 50, py = 50, isDragging = false, lx, ly, ld;
 
-    function toggleFullScreen(e) {
+    // 手機版最安全的點擊綁定事件，分開處理以防點擊穿透
+    function handleToggle(e) {
         e.preventDefault();
         e.stopPropagation();
-        const isFS = va.classList.toggle('fullscreen');
+        const isFS = pw.classList.toggle('fullscreen');
         if (isFS) {
-            // 直接拔出來塞到 body 最底下，確保脫離所有父容器限制
-            document.body.appendChild(va);
+            document.body.appendChild(pw);
             fsBtn.textContent = "退出全螢幕";
         } else {
-            // 還原塞回原本的地方
-            vContainer.appendChild(va);
+            document.querySelector('.main-box').appendChild(pw);
             fsBtn.textContent = "全螢幕預覽";
         }
     }
+    fsBtn.addEventListener('click', handleToggle);
+    fsBtn.addEventListener('touchstart', handleToggle, { passive: false });
 
     function setMode(m) {
         currentMode = m;
@@ -361,12 +369,10 @@
     window.addEventListener('mouseup', () => isDragging = false);
 
     va.ontouchstart = (e) => {
-        if (e.target.classList.contains('btn-fs')) return; 
         if (e.touches.length === 1) { isDragging = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
         else if (e.touches.length === 2) { ld = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }
     };
     va.ontouchmove = (e) => {
-        if (e.target.classList.contains('btn-fs')) return;
         if (e.touches.length === 1 && isDragging) { px += e.touches[0].clientX - lx; py += e.touches[0].clientY - ly; lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
         else if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); sc *= d / ld; ld = d; }
         update(); e.preventDefault();
